@@ -1,0 +1,205 @@
+/* Témoignage, 2017
+ *
+ */
+
+import processing.serial.*;
+import ddf.minim.*;
+
+Serial myPort;
+
+Minim minim;
+AudioInput in;
+AudioRecorder recorder;
+
+public static final int NUM_WAVS = 8;
+AudioPlayer[] player = new AudioPlayer[NUM_WAVS];
+
+int[] previous_track = new int[10];
+
+int countname;
+int name = 000000;
+
+int file_name = 0;
+int current_player = 0;
+
+String val;
+
+void setup(){
+ size(512, 200, P2D);
+ 
+ minim = new Minim(this);
+ in = minim.getLineIn(Minim.STEREO, 2048);
+ newFile(); //Change file name
+ 
+ //
+ for (int i = 0 ; i < NUM_WAVS ; i++) {
+   player[i] = minim.loadFile("file/0"+i+".wav");
+ }
+ 
+ //TODO load pre-recorded sound files
+ /*for (int i = 0 ; i < NUM_WAVS ; i++) {
+   player[i] = minim.loadFile("file/0"+i+".wav");
+ }*/
+ 
+ textFont(createFont("SanSerif", 12));
+ 
+ String portName = "/dev/cu.usbserial-00002014";
+ myPort = new Serial(this, portName, 9600);
+ myPort.clear();
+ myPort.bufferUntil('\n');  // don't generate a serialEvent() until you get a newline (\n) byte
+}
+
+void draw(){
+  background(0); 
+  stroke(255);
+  
+  /*************************************/
+  
+  if (!player[current_player].isPlaying()){
+    for(int i = 0; i < in.bufferSize() - 1; i++){
+      line(i, 50 + in.left.get(i)*50, i+1, 50 + in.left.get(i+1)*50);
+      line(i, 150 + in.right.get(i)*50, i+1, 150 + in.right.get(i+1)*50);
+    }
+  } else {
+    for(int i = 0; i < player[current_player].bufferSize() - 1; i++){
+      float x1 = map( i, 0, player[current_player].bufferSize(), 0, width );
+      float x2 = map( i+1, 0, player[current_player].bufferSize(), 0, width );
+      line( x1, 50 + player[current_player].left.get(i)*50, x2, 50 + player[current_player].left.get(i+1)*50 );
+      line( x1, 150 + player[current_player].right.get(i)*50, x2, 150 + player[current_player].right.get(i+1)*50 );
+    }
+  }
+
+  /*************************************/
+    
+  if (recorder.isRecording()){
+    text("Currently recording... Press 'r' to stop and save", 5, 15);
+  }else{
+    text("Press 'r' to record", 5, 15);
+  }
+  
+  /*************************************/
+  
+  // draw a line to show where in the song playback is currently located
+  float posx = map(player[current_player].position(), 0, player[current_player].length(), 0, width);
+  stroke(0,200,0);
+  line(posx, 0, posx, height);
+  
+  if ( player[current_player].isPlaying() ){
+    text("Press 'p' to pause playback.", 10, 180 );
+  }else{
+    text("Press 'p' to start playback.", 10, 180 );
+  }
+  
+  text(current_player+1+"/"+NUM_WAVS, 480, 180 );
+  
+  if(player[current_player].position() == player[current_player].length()){
+    previous_track();
+    player[current_player].rewind();
+    player[current_player].play();
+  }
+}
+
+void keyReleased(){
+  if( key == 'r' ){
+    record_sound();
+  }
+  
+  if( key == 'p' ){
+    play();
+  }
+  
+  if(keyCode == LEFT){
+    next_track();
+  }else if(keyCode == RIGHT){
+    previous_track();
+  }
+}
+
+void newFile(){
+  countname = name+1;
+  //countname = int(random(0,NUM_WAVS));
+  recorder = minim.createRecorder(in, "file/0" + countname + ".wav", true);
+}
+
+void serialEvent (Serial myPort) {
+  String inString = myPort.readStringUntil('\n');  // get the ASCII string
+  if (inString != null) {  // if it's not empty
+    inString = trim(inString);  // trim off any whitespace
+    try{
+      val = inString;
+      switch(val){
+        case "p": //Play sound
+          play();
+          break; 
+        case "r": //Record sound
+          record_sound();
+          break;
+        case "n": //Next Track
+          next_track();
+          break;
+        case "q": //Previous Track
+          previous_track();
+          break;
+        default :
+          println("No command found");
+          break;
+      }
+    } catch(Exception e){
+      //e.printStackTrace();
+    }
+  }
+}
+
+void play(){
+  if ( player[current_player].isPlaying() ){
+    player[current_player].pause();
+    //player[current_player].rewind();
+    //player[current_player].play();
+  } else if (player[current_player].position() == player[current_player].length()){
+    player[current_player].rewind();
+    player[current_player].play();
+  }else{
+    //player_controller();
+    player[current_player].play();
+  }
+}
+
+void record_sound(){
+  if ( recorder.isRecording()){
+    recorder.endRecord();
+    recorder.save();
+    
+    //TODO reload 
+    player[countname] = minim.loadFile("file/0"+countname+".wav");
+    
+    name++; //change the file name, everytime +1
+    println("Done saving.");
+    println(name);//check the name
+    
+  }else{
+    newFile();
+    recorder.beginRecord();
+  }
+}
+
+void next_track(){
+  if(current_player == 0){
+    current_player = NUM_WAVS-1;
+  }else{
+    current_player--;
+  }
+}
+
+void previous_track(){
+  if(current_player+1 == NUM_WAVS){
+    current_player=0;
+  }else{
+    current_player++;
+  }
+}
+void stop(){
+  // always close Minim audio classes when you are done with them
+  in.close();
+  minim.stop();
+  super.stop();
+}
