@@ -1,10 +1,7 @@
 /* Témoignage, 2017
  * Update: 08/01/18
  *
- * play sound after next is hit
- * go to the beginning of the track when previous is hit (audioplayer.position < 100)
  * play again the recorded file when recording just finich
- * stop recording when blank
  *
  * V2
  * Written by Bastien DIDIER
@@ -20,15 +17,17 @@ Minim minim;
 AudioInput in;
 AudioRecorder recorder;
 int recorder_countname = 0;
+int stop_recording = 60*25;
 
 int[] current_track = {0,0}; //Get current_track on specific audioplayer => current_track[current_audioplayer]
-int select_audioplayer = 0;
+int select_audioplayer = int(random(0,2));
 int current_audioplayer = select_audioplayer;
+boolean play = false;
 
 /*––––––––––––––––––––––––––––––––––––––––
     AUDIO PLAYER PRE-RECORDED TESTIMONY
 –––––––––––––––––––––––––––––––––––––––––*/
-public static final String[] testimony = {"aide.mp3","annonce-entourage.mp3","apprendre-la-maladie.mp3","apres-traitement.mp3","attente.mp3","commencement-peinture.mp3","faire-confiance.mp3","forces-cachees.mp3","original.mp3","peindre.mp3","remission.mp3","ressources.mp3","temoigner-pour-les-autres.mp3"};
+public static final String[] testimony = {"aide.mp3","annonce-entourage.mp3","apprendre-la-maladie.mp3","apres-traitement.mp3","attente.mp3","commencement-peinture.mp3","faire-confiance.mp3","forces-cachees.mp3","peindre.mp3","remission.mp3","ressources.mp3","temoigner-pour-les-autres.mp3"};
 public static final int nb_testimony = testimony.length; // number of pre-recorded testimony
 public static final String testimony_directory = "file/testimony/";
 AudioPlayer[] testimony_player = new AudioPlayer[nb_testimony];
@@ -43,7 +42,8 @@ AudioPlayer[] recorded_testimony_player = new AudioPlayer[nb_recorded_testimony]
 
 void setup(){
   size(512, 200, P2D);
-
+  frameRate(25);
+  
   minim = new Minim(this);
   in = minim.getLineIn(Minim.STEREO, 2048);
   
@@ -70,7 +70,6 @@ void setup(){
    recorded_testimony_player[i] = minim.loadFile(recorded_testimony_directory+str(i)+".wav");
   }
   
-  //println(recorder_countname);
   newFile(); //Set new file for recording
   
   /*––––––––––––––––––––––––––––––––––––––––
@@ -80,7 +79,7 @@ void setup(){
    testimony_player[i] = minim.loadFile(testimony_directory+testimony[i]);
   }
   
-  //play();
+  play(); //lancer la lecture quand l'app se lance
   
   try {
     String portName = "/dev/cu.usbserial-00002014"; //port name where the adafruit metro mini is connected
@@ -118,58 +117,72 @@ void draw(){
     }
   }
   
-  /*if (player[current_player].position() == player[current_player].length()) {
+  //println(testimony_player[current_track[0]].position()+"/"+testimony_player[current_track[0]].length());
+  if(testimony_player[current_track[0]].position() > testimony_player[current_track[0]].length()-350){
     next_track();
-    player[current_player].rewind();
-    player[current_player].play();
-  }*/
+  } else if(recorded_testimony_player[current_track[1]].position() == recorded_testimony_player[current_track[1]].length()){
+    next_track();
+  }
   
+  if(previous == true){
+    if(delay_previous_tracks < max_delay_previous_tracks){
+      delay_previous_tracks++;
+    } else {
+      previous = false;
+    }
+  }
+  
+  if (recorder.isRecording()) {
+    time++;
+  }
+  
+  if(recorder.isRecording() && time > stop_recording){
+    record_sound();
+  }
 }
 
 void play() {
-  if(testimony_player[current_track[0]].isPlaying() || recorded_testimony_player[current_track[1]].isPlaying()){
-    //println(select_audioplayer);
-  } else {
-    if(testimony_player[current_track[0]].position() == 0 && recorded_testimony_player[current_track[1]].position() == 0){
-      select_audioplayer = int(random(0,2)); //choose btw 0 & 1
-      println(select_audioplayer);
-    }/* else if(testimony_player[current_track[0]].position() == testimony_player[current_track[0]].length() || recorded_testimony_player[current_track[1]].position() == recorded_testimony_player[current_track[1]].length()){
-      select_audioplayer = int(random(0,2));
-    }*/
-  }
-
   if(select_audioplayer == 0){
     //PRE-RECORDED
     if ( testimony_player[current_track[0]].isPlaying() ) {
       testimony_player[current_track[0]].pause();
+      play = false;
     } else if(testimony_player[current_track[0]].position() == testimony_player[current_track[0]].length()){
       testimony_player[current_track[0]].rewind();
       testimony_player[current_track[0]].play();
+      play = true;
     } else {  
       testimony_player[current_track[0]].play();
+      play = true;
     }
   } else {
     //RECORDED
     if ( recorded_testimony_player[current_track[1]].isPlaying() ) {
       recorded_testimony_player[current_track[1]].pause();
+      play = false;
     } else if(recorded_testimony_player[current_track[1]].position() == recorded_testimony_player[current_track[1]].length()){
       recorded_testimony_player[current_track[1]].rewind();
       recorded_testimony_player[current_track[1]].play();
+      play = true;
     }else{
       recorded_testimony_player[current_track[1]].play();
+      play = true;
     }
   }
 }
 
 void next_track() {
+  if(play == true){
+    testimony_player[current_track[0]].pause();
+    testimony_player[current_track[0]].rewind();
+    recorded_testimony_player[current_track[1]].pause();
+    recorded_testimony_player[current_track[1]].rewind();
+  }
   
-  //if isPlaying();
-    //stop and go to next sound
-  //else
   select_audioplayer = int(random(0,2)); //choose btw 0 & 1
 
   if(select_audioplayer == 0){
-    if (current_track[0]+1 == nb_testimony) { // +1 ?
+    if (current_track[0]+1 == nb_testimony) {
       current_track[0] = 0;
     } else {
       current_track[0]++;
@@ -181,30 +194,61 @@ void next_track() {
       current_track[1]++;
     }
   }
-}
-
-void previous_track() {
   
-  //if isPlaying();
-    //stop and go to begin of this sound then go to previous sound
-  //else
-  select_audioplayer = int(random(0,2)); //choose btw 0 & 1
-  if(select_audioplayer == 0){
-    if (current_track[0] == 0) { // +1 ?
-      current_track[0] = nb_testimony-1;
-    } else {
-      current_track[0]--;
-    }
-  } else {
-    if (current_track[1] == 0) {
-      current_track[1] = current_nb_recorded_testimony-1;
-    } else {
-      current_track[1]--;
-    }
+  if(play == true){
+    //select_audioplayer = int(random(0,2));
+    play();
   }
 }
 
+int max_delay_previous_tracks = 50;
+int delay_previous_tracks = 50;
+boolean previous = false;
+
+void previous_track() {
+  if(play == true && delay_previous_tracks == 50){
+    testimony_player[current_track[0]].rewind();
+    recorded_testimony_player[current_track[1]].rewind();
+    delay_previous_tracks = 0;
+    previous = true;
+    return;  
+  }
+ 
+  if (delay_previous_tracks < max_delay_previous_tracks){
+    testimony_player[current_track[0]].pause();
+    recorded_testimony_player[current_track[1]].pause();
+    testimony_player[current_track[0]].rewind();
+    recorded_testimony_player[current_track[1]].rewind();
+    
+    select_audioplayer = int(random(0,2)); //choose btw 0 & 1
+    if(select_audioplayer == 0){
+      if (current_track[0] == 0) { // +1 ?
+        current_track[0] = nb_testimony-1;
+      } else {
+        current_track[0]--;
+      }
+    } else {
+      if (current_track[1] == 0) {
+        current_track[1] = current_nb_recorded_testimony-1;
+      } else {
+        current_track[1]--;
+      }
+    }
+  }
+  
+  if(play == true){
+    play();
+  }
+}
+
+int time = 0;
 void record_sound() {
+  if(play == true){
+    play();
+    testimony_player[current_track[0]].rewind();
+    recorded_testimony_player[current_track[1]].rewind();
+  }
+  
   if (recorder.isRecording()) {
     recorder.endRecord();
     recorder.save();
@@ -218,6 +262,7 @@ void record_sound() {
     
   } else {
     recorder.beginRecord();
+    time = 0;
   }
 }
 
